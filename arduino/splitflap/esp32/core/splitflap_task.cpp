@@ -282,9 +282,14 @@ void SplitflapTask::runUpdate() {
 }
 
 int8_t SplitflapTask::findFlapIndex(uint8_t character) {
+    if (character <= 'Z' && character >= 'A')
+    {
+        character = character - ('Z' - 'z');
+    }
     for (int8_t i = 0; i < NUM_FLAPS; i++) {
-        if (character == flaps[i]) {
-          return i;
+        if (character == flaps[i])
+        {
+            return i;
         }
     }
     return -1;
