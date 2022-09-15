@@ -21,6 +21,7 @@
 #include <json11.hpp>
 #include <time.h>
 
+#include "geo_distance.h"
 #include "secrets.h"
 
 using namespace json11;
@@ -36,8 +37,8 @@ using namespace json11;
 // - json response parsing using json11 (see handleData)
 // - cycling through messages at a different interval than data is loaded (see run)
 
-// Update data every 10 minutes
-#define REQUEST_INTERVAL_MILLIS (10 * 60 * 1000)
+// Update data every 10 seconds
+#define REQUEST_INTERVAL_MILLIS (10 * 1000)
 
 // Cycle the message that's showing more frequently, every 30 seconds (exaggerated for example purposes)
 #define MESSAGE_CYCLE_INTERVAL_MILLIS (30 * 1000)
@@ -45,22 +46,28 @@ using namespace json11;
 // Don't show stale data if it's been too long since successful data load
 #define STALE_TIME_MILLIS (REQUEST_INTERVAL_MILLIS * 3)
 
-// Public token for synoptic data api (it's not secret, but please don't abuse it)
-#define SYNOPTICDATA_TOKEN "e763d68537d9498a90fa808eb9d415d9"
+// Timezone for local time strings; this is Australia/Sydney. See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+#define TIMEZONE "AEST-10AEDT,M10.1.0,M4.1.0/3"
 
-// Timezone for local time strings; this is America/Los_Angeles. See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-#define TIMEZONE "PST8PDT,M3.2.0,M11.1.0"
+// 68 Duncan St Maroubra
+#define CURRENT_LAT -33.9429
+#define CURRENT_LNG 151.2562
 
-bool HTTPTask::fetchData() {
+#define MAX_DISTANCE_KM 2
+#define MAX_ALT_M 1500
+
+bool HTTPTask::fetchData()
+{
     char buf[200];
     uint32_t start = millis();
     HTTPClient http;
 
     // Construct the http request
-    http.begin("https://api.synopticdata.com/v2/stations/latest?&token=" SYNOPTICDATA_TOKEN "&within=30&units=english&vars=air_temp,wind_speed&varsoperator=and&radius=37.765157,-122.419702,4&limit=20&fields=stid");
+    http.begin("https://opensky-network.org/api/states/own");
 
     // If you wanted to add headers, you would do so like this:
     // http.addHeader("Accept", "application/json");
+    http.setAuthorization(OPENSKY_USER, OPENSKY_PASSWORD);
 
     // Send the request as a GET
     logger_.log("Sending request");
@@ -94,125 +101,88 @@ bool HTTPTask::fetchData() {
 }
 
 bool HTTPTask::handleData(Json json) {
+    char buf[200];
+
     // Extract data from the json response. You could use ArduinoJson, but I find json11 to be much
     // easier to use albeit not optimized for a microcontroller.
 
-    // Example data:
-    /*
+    // Validate json structure and extract data:
+    auto states = json["states"];
+    if (!states.is_array())
+    {
+        logger_.log("Parse error: states");
+        return false;
+    }
+    auto states_array = states.array_items();
+
+    double nearest_dist = 10000;
+    std::string nearest_callsign;
+    std::string nearest_icao24;
+
+    for (uint8_t i = 0; i < states_array.size(); i++)
+    {
+        auto state = states_array[i];
+        if (!state.is_array())
         {
-            ...
-            "STATION": [
-                {
-                    "STID": "F4637",
-                    "OBSERVATIONS": {
-                        "wind_speed_value_1": {
-                            "date_time": "2021-11-30T23:25:00Z",
-                            "value": 0.87
-                        },
-                        "air_temp_value_1": {
-                            "date_time": "2021-11-30T23:25:00Z",
-                            "value": 69
-                        }
-                    },
-                    ...
-                },
-                {
-                    "STID": "C5988",
-                    "OBSERVATIONS": {
-                        "wind_speed_value_1": {
-                            "date_time": "2021-11-30T23:24:00Z",
-                            "value": 1.74
-                        },
-                        "air_temp_value_1": {
-                            "date_time": "2021-11-30T23:24:00Z",
-                            "value": 68
-                        }
-                    },
-                    ...
-                },
-                ...
-            ]
-        }
-    */
-
-   // Validate json structure and extract data:
-    auto station = json["STATION"];
-    if (!station.is_array()) {
-        logger_.log("Parse error: STATION");
-        return false;
-    }
-    auto station_array = station.array_items();
-
-    std::vector<double> temps;
-    std::vector<double> wind_speeds;
-
-    for (uint8_t i = 0; i < station_array.size(); i++) {
-        auto item = station_array[i];
-        if (!item.is_object()) {
-            logger_.log("Bad station item, ignoring");
-            continue;
-        }
-        auto observations = item["OBSERVATIONS"];
-        if (!observations.is_object()) {
-            logger_.log("Bad station observations, ignoring");
+            logger_.log("Parse error: state");
             continue;
         }
 
-        auto air_temp_value = observations["air_temp_value_1"];
-        if (!air_temp_value.is_object()) {
-            logger_.log("Bad air_temp_value_1, ignoring");
-            continue;
-        }
-        auto value = air_temp_value["value"];
-        if (!value.is_number()) {
-            logger_.log("Bad air temp, ignoring");
-            continue;
-        }
-        temps.push_back(value.number_value());
+        auto state_array = state.array_items();
 
-        auto wind_speed_value = observations["wind_speed_value_1"];
-        if (!wind_speed_value.is_object()) {
-            logger_.log("Bad wind_speed_value_1, ignoring");
+        if (!state_array[0].is_string() || !state_array[1].is_string())
+        {
+            logger_.log("Parse error: callsign");
             continue;
         }
-        value = wind_speed_value["value"];
-        if (!value.is_number()) {
-            logger_.log("Bad wind speed, ignoring");
+        std::string icao24 = state_array[0].string_value();
+        std::string callsign = state_array[1].string_value();
+
+        if (!state_array[5].is_number() || !state_array[6].is_number() || !state_array[7].is_number())
+        {
+            logger_.log("Parse error: lat/lng/alt");
             continue;
         }
-        wind_speeds.push_back(value.number_value());
+        double lng = state_array[5].number_value();
+        double lat = state_array[6].number_value();
+        double dist = great_circle_distance(CURRENT_LAT, CURRENT_LNG, lat, lng);
+
+        if (dist > MAX_DISTANCE_KM)
+        {
+            snprintf(buf, sizeof(buf), "Plane %s too far away %f.", callsign.c_str(), dist);
+            logger_.log(buf);
+            continue;
+        }
+
+        double alt = state_array[7].number_value();
+        if (alt > MAX_ALT_M)
+        {
+            snprintf(buf, sizeof(buf), "Plane %s too high %f.", callsign.c_str(), alt);
+            logger_.log(buf);
+            continue;
+        }
+
+        if (dist < nearest_dist)
+        {
+            nearest_dist = dist;
+            nearest_callsign = callsign;
+            nearest_icao24 = icao24;
+        }
     }
 
-    auto entries = temps.size();
-    if (entries == 0) {
-        logger_.log("No data found");
+    if (nearest_dist > MAX_DISTANCE_KM)
+    {
+        logger_.log("No nearby planes");
         return false;
     }
 
-    // Calculate medians
-    std::sort(temps.begin(), temps.end());
-    std::sort(wind_speeds.begin(), wind_speeds.end());
-    double median_temp;
-    double median_wind_speed;
-    if ((entries % 2) == 0) {
-        median_temp = (temps[entries/2 - 1] + temps[entries/2]) / 2;
-        median_wind_speed = (wind_speeds[entries/2 - 1] + wind_speeds[entries/2]) / 2;
-    } else {
-        median_temp = temps[entries/2];
-        median_wind_speed = wind_speeds[entries/2];
-    }
-
-    char buf[200];
-    snprintf(buf, sizeof(buf), "Medians from %d stations: temp=%dºF, wind speed=%d knots", entries, (int)median_temp, (int)median_wind_speed);
+    snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_icao24.c_str(), nearest_callsign.c_str(), nearest_dist);
     logger_.log(buf);
 
     // Construct the messages to display
     messages_.clear();
 
-    snprintf(buf, sizeof(buf), "%d f", (int)median_temp);
-    messages_.push_back(String(buf));
-
-    snprintf(buf, sizeof(buf), "%d mph", (int)(median_wind_speed * 1.151));
+    snprintf(buf, sizeof(buf), "%s", nearest_callsign.c_str());
     messages_.push_back(String(buf));
 
     // Show the data fetch time on the LCD
@@ -289,7 +259,7 @@ void HTTPTask::run() {
         if (!stale && http_last_success_time_ > 0 && millis() - http_last_success_time_ > STALE_TIME_MILLIS) {
             stale = true;
             messages_.clear();
-            messages_.push_back("stale");
+            messages_.push_back("      ");
             update = true;
         }
 
