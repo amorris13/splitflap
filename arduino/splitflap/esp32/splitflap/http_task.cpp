@@ -37,14 +37,14 @@ using namespace json11;
 // - json response parsing using json11 (see handleData)
 // - cycling through messages at a different interval than data is loaded (see run)
 
-// Update data every 10 seconds
-#define REQUEST_INTERVAL_MILLIS (10 * 1000)
+// Update data every 5 seconds
+#define REQUEST_INTERVAL_MILLIS (5 * 1000)
 
 // Cycle the message that's showing more frequently, every 30 seconds (exaggerated for example purposes)
 #define MESSAGE_CYCLE_INTERVAL_MILLIS (30 * 1000)
 
 // Don't show stale data if it's been too long since successful data load
-#define STALE_TIME_MILLIS (REQUEST_INTERVAL_MILLIS * 3)
+#define STALE_TIME_MILLIS (30 * 1000)
 
 // Timezone for local time strings; this is Australia/Sydney. See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "AEST-10AEDT,M10.1.0,M4.1.0/3"
@@ -54,7 +54,7 @@ using namespace json11;
 #define CURRENT_LNG 151.2562
 
 #define MAX_DISTANCE_KM 3
-#define MAX_ALT_M 1500
+#define MAX_ALT_FT 5000
 
 bool HTTPTask::fetchData()
 {
@@ -63,11 +63,7 @@ bool HTTPTask::fetchData()
     HTTPClient http;
 
     // Construct the http request
-    http.begin("https://opensky-network.org/api/states/own");
-
-    // If you wanted to add headers, you would do so like this:
-    // http.addHeader("Accept", "application/json");
-    http.setAuthorization(OPENSKY_USER, OPENSKY_PASSWORD);
+    http.begin("http://raspberrypi:8080/data/aircraft.json");
 
     // Send the request as a GET
     logger_.log("Sending request");
@@ -113,59 +109,47 @@ bool HTTPTask::handleData(Json json) {
     // easier to use albeit not optimized for a microcontroller.
 
     // Validate json structure and extract data:
-    auto states = json["states"];
-    if (!states.is_array())
+    auto aircrafts = json["aircraft"];
+    if (!aircrafts.is_array())
     {
-        logger_.log("Parse error: states");
+        logger_.log("Parse error: aircraft");
         return false;
     }
-    auto states_array = states.array_items();
+    auto aircraft_array = aircrafts.array_items();
 
     double nearest_dist = 10000;
-    std::string nearest_callsign;
-    std::string nearest_icao24;
+    Json nearest_aircraft;
 
-    display_task_.setMessage(2, String("Num planes: ") + String(states_array.size(), 10));
+    display_task_.setMessage(2, String("Num planes: ") + String(aircraft_array.size(), 10));
 
-    for (uint8_t i = 0; i < states_array.size(); i++)
+    for (uint8_t i = 0; i < aircraft_array.size(); i++)
     {
-        auto state = states_array[i];
-        if (!state.is_array())
-        {
-            logger_.log("Parse error: state");
-            continue;
-        }
+        Json aircraft = aircraft_array[i];
 
-        auto state_array = state.array_items();
-
-        if (!state_array[0].is_string() || !state_array[1].is_string())
+        if (aircraft["flight"].is_null())
         {
-            logger_.log("Parse error: callsign");
-            continue;
-        }
-        std::string icao24 = state_array[0].string_value();
-        std::string callsign = state_array[1].string_value();
-
-        if (!state_array[5].is_number() || !state_array[6].is_number() || !state_array[7].is_number())
-        {
-            logger_.log("Parse error: lat/lng/alt");
-            continue;
-        }
-        double lng = state_array[5].number_value();
-        double lat = state_array[6].number_value();
-        double dist = great_circle_distance(CURRENT_LAT, CURRENT_LNG, lat, lng);
-
-        if (dist > MAX_DISTANCE_KM)
-        {
-            snprintf(buf, sizeof(buf), "Plane %s too far away %f.", callsign.c_str(), dist);
+            snprintf(buf, sizeof(buf), "Plane %s has no flight number.", aircraft["hex"].string_value().c_str());
             logger_.log(buf);
             continue;
         }
 
-        double alt = state_array[7].number_value();
-        if (alt > MAX_ALT_M)
+        std::string callsign = aircraft["flight"].string_value();
+
+        double lon = aircraft["lon"].number_value();
+        double lat = aircraft["lat"].number_value();
+        double dist = great_circle_distance(CURRENT_LAT, CURRENT_LNG, lat, lon);
+
+        if (dist > MAX_DISTANCE_KM)
         {
-            snprintf(buf, sizeof(buf), "Plane %s too high %f.", callsign.c_str(), alt);
+            snprintf(buf, sizeof(buf), "Plane %s too far away %fkm.", callsign.c_str(), dist);
+            logger_.log(buf);
+            continue;
+        }
+
+        double alt = aircraft["alt_geom"].number_value();
+        if (alt > MAX_ALT_FT)
+        {
+            snprintf(buf, sizeof(buf), "Plane %s too high %fft.", callsign.c_str(), alt);
             logger_.log(buf);
             continue;
         }
@@ -173,8 +157,7 @@ bool HTTPTask::handleData(Json json) {
         if (dist < nearest_dist)
         {
             nearest_dist = dist;
-            nearest_callsign = callsign;
-            nearest_icao24 = icao24;
+            nearest_aircraft = aircraft;
         }
     }
 
@@ -184,13 +167,15 @@ bool HTTPTask::handleData(Json json) {
         return false;
     }
 
-    snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_icao24.c_str(), nearest_callsign.c_str(), nearest_dist);
+    snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_aircraft["hex"].string_value().c_str(), nearest_aircraft["flight"].string_value().c_str(), nearest_dist);
     logger_.log(buf);
+
+    // TODO: Request further information about the flight (origin/destination, IATA flight number, aircraft).
 
     // Construct the messages to display
     messages_.clear();
 
-    snprintf(buf, sizeof(buf), "%s", nearest_callsign.c_str());
+    snprintf(buf, sizeof(buf), "%s", nearest_aircraft["flight"].string_value().c_str());
     messages_.push_back(String(buf));
 
     return true;
