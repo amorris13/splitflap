@@ -53,7 +53,7 @@ using namespace json11;
 #define CURRENT_LAT -33.9429
 #define CURRENT_LNG 151.2562
 
-#define MAX_DISTANCE_KM 2
+#define MAX_DISTANCE_KM 3
 #define MAX_ALT_M 1500
 
 bool HTTPTask::fetchData()
@@ -103,6 +103,12 @@ bool HTTPTask::fetchData()
 bool HTTPTask::handleData(Json json) {
     char buf[200];
 
+    // Show the data fetch time on the LCD
+    time_t now;
+    time(&now);
+    strftime(buf, sizeof(buf), "Data: %Y-%m-%d %H:%M:%S", localtime(&now));
+    display_task_.setMessage(0, String(buf));
+
     // Extract data from the json response. You could use ArduinoJson, but I find json11 to be much
     // easier to use albeit not optimized for a microcontroller.
 
@@ -118,6 +124,8 @@ bool HTTPTask::handleData(Json json) {
     double nearest_dist = 10000;
     std::string nearest_callsign;
     std::string nearest_icao24;
+
+    display_task_.setMessage(2, String("Num planes: ") + String(states_array.size(), 10));
 
     for (uint8_t i = 0; i < states_array.size(); i++)
     {
@@ -185,11 +193,6 @@ bool HTTPTask::handleData(Json json) {
     snprintf(buf, sizeof(buf), "%s", nearest_callsign.c_str());
     messages_.push_back(String(buf));
 
-    // Show the data fetch time on the LCD
-    time_t now;
-    time(&now);
-    strftime(buf, sizeof(buf), "Data: %Y-%m-%d %H:%M:%S", localtime(&now));
-    display_task_.setMessage(0, String(buf));
     return true;
 }
 

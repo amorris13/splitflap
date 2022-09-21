@@ -39,5 +39,5 @@ class DisplayTask : public Task<DisplayTask> {
 
         TFT_eSPI tft_ = TFT_eSPI();
 
-        String messages_[2] = {};
+        String messages_[3] = {};
 };
