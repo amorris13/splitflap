@@ -22,6 +22,7 @@
 #include <time.h>
 
 #include "geo_distance.h"
+#include "icao_to_iata.h"
 #include "secrets.h"
 
 using namespace json11;
@@ -53,7 +54,7 @@ using namespace json11;
 #define CURRENT_LAT -33.9429
 #define CURRENT_LNG 151.2562
 
-#define MAX_DISTANCE_KM 3
+#define MAX_DISTANCE_KM 2
 #define MAX_ALT_FT 5000
 
 bool HTTPTask::fetchData()
@@ -170,17 +171,17 @@ bool HTTPTask::handleData(Json json) {
     snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_aircraft["hex"].string_value().c_str(), nearest_aircraft["flight"].string_value().c_str(), nearest_dist);
     logger_.log(buf);
 
+    std::string iataFlight = icaoToIataFlight(nearest_aircraft["flight"].string_value());
     // TODO: Request further information about the flight (origin/destination, IATA flight number, aircraft).
 
     // Construct the messages to display
     messages_.clear();
 
-    snprintf(buf, sizeof(buf), "%s", nearest_aircraft["flight"].string_value().c_str());
+    snprintf(buf, sizeof(buf), "%s", iataFlight.c_str());
     messages_.push_back(String(buf));
 
     return true;
 }
-
 
 HTTPTask::HTTPTask(SplitflapTask& splitflap_task, DisplayTask& display_task, Logger& logger, const uint8_t task_core) :
         Task("HTTP", 8192, 1, task_core),
