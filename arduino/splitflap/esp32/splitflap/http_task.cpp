@@ -55,7 +55,7 @@
 #define MAX_DISTANCE_KM 2
 #define MAX_ALT_FT 5000
 
-bool HTTPTask::fetchData()
+FetchResult HTTPTask::fetchData()
 {
     char buf[200];
     uint32_t start = millis();
@@ -93,10 +93,10 @@ bool HTTPTask::fetchData()
             http.end();
             snprintf(buf, sizeof(buf), "Error parsing response! %s", err.c_str());
             logger_.log(buf);
-            return false;
+            return FetchResult::ERROR;
         }
 
-        bool result = handleData(doc);
+        FetchResult result = handleData(doc);
         http.end();
         return result;
     }
@@ -105,11 +105,11 @@ bool HTTPTask::fetchData()
         snprintf(buf, sizeof(buf), "Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
         logger_.log(buf);
         http.end();
-        return false;
+        return FetchResult::ERROR;
     }
 }
 
-bool HTTPTask::handleData(DynamicJsonDocument json)
+FetchResult HTTPTask::handleData(DynamicJsonDocument json)
 {
     char buf[200];
 
@@ -172,7 +172,7 @@ bool HTTPTask::handleData(DynamicJsonDocument json)
     if (nearest_dist > MAX_DISTANCE_KM)
     {
         logger_.log("No nearby planes");
-        return false;
+        return FetchResult::ERROR;
     }
 
     snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_hex.c_str(), nearest_callsign.c_str(), nearest_dist);
@@ -181,7 +181,7 @@ bool HTTPTask::handleData(DynamicJsonDocument json)
     if (current_callsign && nearest_callsign == current_callsign)
     {
         logger_.log("Plane already detected");
-        return true;
+        return FetchResult::NO_CHANGE;
     }
     current_callsign = nearest_callsign;
 
@@ -195,7 +195,7 @@ bool HTTPTask::handleData(DynamicJsonDocument json)
     messages_.push_back(iataFlight);
     messages_.push_back(route);
 
-    return true;
+    return FetchResult::UPDATE;
 }
 
 String HTTPTask::getRoute(String callsign)
@@ -305,11 +305,17 @@ void HTTPTask::run() {
 
         bool update = false;
         if (http_last_request_time_ == 0 || now - http_last_request_time_ > REQUEST_INTERVAL_MILLIS) {
-            if (fetchData()) {
+            FetchResult fetchResult = fetchData();
+            if (fetchResult != FetchResult::ERROR)
+            {
                 http_last_success_time_ = millis();
                 stale = false;
+            }
+            if (fetchResult == FetchResult::UPDATE)
+            {
                 update = true;
             }
+
             http_last_request_time_ = millis();
         }
 

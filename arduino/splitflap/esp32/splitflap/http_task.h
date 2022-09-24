@@ -25,6 +25,13 @@
 
 #include "display_task.h"
 
+enum class FetchResult
+{
+    ERROR,
+    NO_CHANGE,
+    UPDATE,
+};
+
 class HTTPTask : public Task<HTTPTask> {
     friend class Task<HTTPTask>; // Allow base Task to invoke protected run()
 
@@ -36,8 +43,8 @@ class HTTPTask : public Task<HTTPTask> {
 
     private:
         void connectWifi();
-        bool fetchData();
-        bool handleData(DynamicJsonDocument json);
+        FetchResult fetchData();
+        FetchResult handleData(DynamicJsonDocument json);
 
         String getRoute(String callsign);
 
