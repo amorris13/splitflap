@@ -18,14 +18,12 @@
 
 #include <HTTPClient.h>
 #include <lwip/apps/sntp.h>
-#include <json11.hpp>
 #include <time.h>
 
+#include "../core/arduino_json.h"
 #include "geo_distance.h"
 #include "icao_to_iata.h"
 #include "secrets.h"
-
-using namespace json11;
 
 // About this example:
 // - Fetches current weather data for an area in San Francisco (updating infrequently)
@@ -65,6 +63,7 @@ bool HTTPTask::fetchData()
 
     // Construct the http request
     http.begin("http://raspberrypi:8080/data/aircraft.json");
+    http.useHTTP10(true);
 
     // Send the request as a GET
     logger_.log("Sending request");
@@ -72,24 +71,37 @@ bool HTTPTask::fetchData()
 
     snprintf(buf, sizeof(buf), "Finished request in %lu millis.", millis() - start);
     logger_.log(buf);
-    if (http_code > 0) {
-        String data = http.getString();
-        http.end();
-
-        snprintf(buf, sizeof(buf), "Response code: %d Data length: %d", http_code, data.length());
+    if (http_code > 0)
+    {
+        snprintf(buf, sizeof(buf), "Response code: %d Data length: %d", http_code, http.getSize());
         logger_.log(buf);
 
-        std::string err;
-        Json json = Json::parse(data.c_str(), err);
+        // The filter: it contains "true" for each value we want to keep
+        StaticJsonDocument<200> filter;
+        filter["aircraft"][0]["hex"] = true;
+        filter["aircraft"][0]["flight"] = true;
+        filter["aircraft"][0]["alt_geom"] = true;
+        filter["aircraft"][0]["lat"] = true;
+        filter["aircraft"][0]["lon"] = true;
 
-        if (err.empty()) {
-            return handleData(json);
-        } else {
+        // Parse response
+        DynamicJsonDocument doc(2048);
+        DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+
+        if (err)
+        {
+            http.end();
             snprintf(buf, sizeof(buf), "Error parsing response! %s", err.c_str());
             logger_.log(buf);
             return false;
         }
-    } else {
+
+        bool result = handleData(doc);
+        http.end();
+        return result;
+    }
+    else
+    {
         snprintf(buf, sizeof(buf), "Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
         logger_.log(buf);
         http.end();
@@ -97,7 +109,8 @@ bool HTTPTask::fetchData()
     }
 }
 
-bool HTTPTask::handleData(Json json) {
+bool HTTPTask::handleData(DynamicJsonDocument json)
+{
     char buf[200];
 
     // Show the data fetch time on the LCD
@@ -109,35 +122,28 @@ bool HTTPTask::handleData(Json json) {
     // Extract data from the json response. You could use ArduinoJson, but I find json11 to be much
     // easier to use albeit not optimized for a microcontroller.
 
-    // Validate json structure and extract data:
-    auto aircrafts = json["aircraft"];
-    if (!aircrafts.is_array())
-    {
-        logger_.log("Parse error: aircraft");
-        return false;
-    }
-    auto aircraft_array = aircrafts.array_items();
+    // Extract data:
+    JsonArray aircrafts = json["aircraft"].as<JsonArray>();
 
     double nearest_dist = 10000;
-    Json nearest_aircraft;
+    String nearest_callsign;
+    String nearest_hex;
 
-    display_task_.setMessage(2, String("Num planes: ") + String(aircraft_array.size(), 10));
-
-    for (uint8_t i = 0; i < aircraft_array.size(); i++)
+    display_task_.setMessage(2, String("Num planes: ") + String(aircrafts.size(), 10));
+    for (JsonObject aircraft : aircrafts)
     {
-        Json aircraft = aircraft_array[i];
-
-        if (aircraft["flight"].is_null())
+        String hex = aircraft["hex"];
+        if (!aircraft["flight"])
         {
-            snprintf(buf, sizeof(buf), "Plane %s has no flight number.", aircraft["hex"].string_value().c_str());
+            snprintf(buf, sizeof(buf), "Plane %s has no flight number.", hex.c_str());
             logger_.log(buf);
             continue;
         }
 
-        std::string callsign = aircraft["flight"].string_value();
+        String callsign = aircraft["flight"];
 
-        double lon = aircraft["lon"].number_value();
-        double lat = aircraft["lat"].number_value();
+        double lon = aircraft["lon"];
+        double lat = aircraft["lat"];
         double dist = great_circle_distance(CURRENT_LAT, CURRENT_LNG, lat, lon);
 
         if (dist > MAX_DISTANCE_KM)
@@ -147,7 +153,7 @@ bool HTTPTask::handleData(Json json) {
             continue;
         }
 
-        double alt = aircraft["alt_geom"].number_value();
+        double alt = aircraft["alt_geom"];
         if (alt > MAX_ALT_FT)
         {
             snprintf(buf, sizeof(buf), "Plane %s too high %fft.", callsign.c_str(), alt);
@@ -158,7 +164,8 @@ bool HTTPTask::handleData(Json json) {
         if (dist < nearest_dist)
         {
             nearest_dist = dist;
-            nearest_aircraft = aircraft;
+            nearest_callsign = callsign;
+            nearest_hex = hex;
         }
     }
 
@@ -168,10 +175,10 @@ bool HTTPTask::handleData(Json json) {
         return false;
     }
 
-    snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_aircraft["hex"].string_value().c_str(), nearest_aircraft["flight"].string_value().c_str(), nearest_dist);
+    snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_hex.c_str(), nearest_callsign.c_str(), nearest_dist);
     logger_.log(buf);
 
-    std::string iataFlight = icaoToIataFlight(nearest_aircraft["flight"].string_value());
+    String iataFlight = icaoToIataFlight(nearest_callsign);
     // TODO: Request further information about the flight (origin/destination, IATA flight number, aircraft).
 
     // Construct the messages to display

@@ -16,9 +16,9 @@
 #pragma once
 
 #include <Arduino.h>
-#include <json11.hpp>
 #include <WiFi.h>
 
+#include "../core/arduino_json.h"
 #include "../core/logger.h"
 #include "../core/splitflap_task.h"
 #include "../core/task.h"
@@ -37,7 +37,7 @@ class HTTPTask : public Task<HTTPTask> {
     private:
         void connectWifi();
         bool fetchData();
-        bool handleData(json11::Json json);
+        bool handleData(DynamicJsonDocument json);
 
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
