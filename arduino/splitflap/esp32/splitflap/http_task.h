@@ -52,4 +52,5 @@ class HTTPTask : public Task<HTTPTask> {
         uint8_t current_message_index_ = 0;
         uint32_t last_message_change_time_ = 0;
 
+        String current_callsign;
 };

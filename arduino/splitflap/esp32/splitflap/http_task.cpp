@@ -43,7 +43,7 @@
 #define MESSAGE_CYCLE_INTERVAL_MILLIS (30 * 1000)
 
 // Don't show stale data if it's been too long since successful data load
-#define STALE_TIME_MILLIS (30 * 1000)
+#define STALE_TIME_MILLIS (60 * 1000)
 
 // Timezone for local time strings; this is Australia/Sydney. See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "AEST-10AEDT,M10.1.0,M4.1.0/3"
@@ -177,6 +177,13 @@ bool HTTPTask::handleData(DynamicJsonDocument json)
 
     snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_hex.c_str(), nearest_callsign.c_str(), nearest_dist);
     logger_.log(buf);
+
+    if (current_callsign && nearest_callsign == current_callsign)
+    {
+        logger_.log("Plane already detected");
+        return true;
+    }
+    current_callsign = nearest_callsign;
 
     String iataFlight = icaoToIataFlight(nearest_callsign);
     // TODO: Request further information about the flight (origin/destination, IATA flight number, aircraft).
