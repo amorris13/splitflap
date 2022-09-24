@@ -3,9 +3,14 @@
 #include <map>
 
 static std::map<String, String> airlinesMap = {
-    {"QFA", "QF"},
+    {"ACI", "SB"},
+    {"ANZ", "NZ"},
     {"JST", "JQ"},
-    {"ANZ", "NZ"}};
+    {"QFA", "QF"},
+    {"QJE", "QF"},
+    {"QLK", "QF"},
+    {"RXA", "ZL"},
+    {"VOZ", "VA"}};
 
 static String icaoToIataFlight(String icaoFlight)
 {
