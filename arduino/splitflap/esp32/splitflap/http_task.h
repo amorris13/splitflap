@@ -39,6 +39,8 @@ class HTTPTask : public Task<HTTPTask> {
         bool fetchData();
         bool handleData(DynamicJsonDocument json);
 
+        String getRoute(String callsign);
+
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
         Logger& logger_;

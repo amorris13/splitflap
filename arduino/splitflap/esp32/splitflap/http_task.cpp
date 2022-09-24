@@ -180,14 +180,68 @@ bool HTTPTask::handleData(DynamicJsonDocument json)
 
     String iataFlight = icaoToIataFlight(nearest_callsign);
     // TODO: Request further information about the flight (origin/destination, IATA flight number, aircraft).
+    String route = getRoute(nearest_callsign);
 
     // Construct the messages to display
     messages_.clear();
 
-    snprintf(buf, sizeof(buf), "%s", iataFlight.c_str());
-    messages_.push_back(String(buf));
+    messages_.push_back(iataFlight);
+    messages_.push_back(route);
 
     return true;
+}
+
+String HTTPTask::getRoute(String callsign)
+{
+    char buf[200];
+    uint32_t start = millis();
+    HTTPClient http;
+
+    // Construct the http request
+    http.begin("https://api.adsbdb.com/v0/callsign/" + callsign);
+    http.useHTTP10(true);
+
+    // Send the request as a GET
+    logger_.log("Sending request");
+    int http_code = http.GET();
+
+    snprintf(buf, sizeof(buf), "Finished request in %lu millis.", millis() - start);
+    logger_.log(buf);
+    if (http_code > 0)
+    {
+        snprintf(buf, sizeof(buf), "Response code: %d Data length: %d", http_code, http.getSize());
+        logger_.log(buf);
+
+        // The filter: it contains "true" for each value we want to keep
+        StaticJsonDocument<200> filter;
+        filter["response"]["flightroute"]["origin"]["iata_code"] = true;
+        filter["response"]["flightroute"]["destination"]["iata_code"] = true;
+
+        // Parse response
+        DynamicJsonDocument doc(2048);
+        DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+
+        if (err)
+        {
+            http.end();
+            snprintf(buf, sizeof(buf), "Error parsing response! %s", err.c_str());
+            logger_.log(buf);
+            return "";
+        }
+
+        String origin = doc["response"]["flightroute"]["origin"]["iata_code"];
+        String destination = doc["response"]["flightroute"]["destination"]["iata_code"];
+
+        http.end();
+        return origin + destination;
+    }
+    else
+    {
+        snprintf(buf, sizeof(buf), "Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
+        logger_.log(buf);
+        http.end();
+        return "";
+    }
 }
 
 HTTPTask::HTTPTask(SplitflapTask& splitflap_task, DisplayTask& display_task, Logger& logger, const uint8_t task_core) :
