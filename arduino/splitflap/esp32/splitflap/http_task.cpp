@@ -41,10 +41,10 @@
 #define REQUEST_INTERVAL_MILLIS (5 * 1000)
 
 // Cycle the message that's showing more frequently, every 30 seconds (exaggerated for example purposes)
-#define MESSAGE_CYCLE_INTERVAL_MILLIS (30 * 1000)
+#define MESSAGE_CYCLE_INTERVAL_MILLIS (15 * 1000)
 
 // Don't show stale data if it's been too long since successful data load
-#define STALE_TIME_MILLIS (60 * 1000)
+#define STALE_TIME_MILLIS (20 * 1000)
 
 // Timezone for local time strings; this is Australia/Sydney. See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "AEST-10AEDT,M10.1.0,M4.1.0/3"
@@ -53,8 +53,11 @@
 #define CURRENT_LAT -33.9429
 #define CURRENT_LNG 151.2562
 
-#define MAX_DISTANCE_KM 2
-#define MAX_ALT_FT 5000
+#define MAX_DISTANCE_KM 2.5
+#define MAX_ALT_FT 7000
+
+#define LOW_ALT_FT 1000
+#define LOW_MAX_DISTANCE_KM 1
 
 FetchResult HTTPTask::fetchData()
 {
@@ -166,6 +169,7 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
         double lon = aircraft["lon"];
         double lat = aircraft["lat"];
         double dist = great_circle_distance(CURRENT_LAT, CURRENT_LNG, lat, lon);
+        double alt = aircraft["alt_geom"];
 
         if (dist > MAX_DISTANCE_KM)
         {
@@ -174,10 +178,16 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
             continue;
         }
 
-        double alt = aircraft["alt_geom"];
         if (alt > MAX_ALT_FT)
         {
             snprintf(buf, sizeof(buf), "Plane %s too high %fft.", callsign.c_str(), alt);
+            logger_.log(buf);
+            continue;
+        }
+
+        if (alt < LOW_ALT_FT && dist > LOW_MAX_DISTANCE_KM)
+        {
+            snprintf(buf, sizeof(buf), "Plane %s flying low at %fft and too far away %fkm.", callsign.c_str(), alt, dist);
             logger_.log(buf);
             continue;
         }
@@ -261,10 +271,15 @@ String HTTPTask::getRoute(String callsign)
 
         if (!doc["response"]["flightroute"])
         {
+            snprintf(buf, sizeof(buf), "No flight route for callsign %s", callsign.c_str());
+            logger_.log(buf);
             return "";
         }
         String origin = doc["response"]["flightroute"]["origin"]["iata_code"];
         String destination = doc["response"]["flightroute"]["destination"]["iata_code"];
+
+        snprintf(buf, sizeof(buf), "Flight route for callsign %s is %s%s", callsign.c_str(), origin.c_str(), destination.c_str());
+        logger_.log(buf);
 
         http.end();
         return origin + destination;
