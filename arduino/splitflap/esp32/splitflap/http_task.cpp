@@ -67,7 +67,7 @@ FetchResult HTTPTask::fetchData()
     http.useHTTP10(true);
 
     // Send the request as a GET
-    logger_.log("Sending request");
+    logger_.log("Sending adsb request");
     int http_code = http.GET();
 
     snprintf(buf, sizeof(buf), "Finished request in %lu millis.", millis() - start);
@@ -232,7 +232,7 @@ String HTTPTask::getRoute(String callsign)
     http.useHTTP10(true);
 
     // Send the request as a GET
-    logger_.log("Sending request");
+    logger_.log("Sending route request");
     int http_code = http.GET();
 
     snprintf(buf, sizeof(buf), "Finished request in %lu millis.", millis() - start);
