@@ -19,6 +19,7 @@
 #include <HTTPClient.h>
 #include <lwip/apps/sntp.h>
 #include <time.h>
+#include <Regexp.h>
 
 #include "../core/arduino_json.h"
 #include "geo_distance.h"
@@ -109,6 +110,26 @@ FetchResult HTTPTask::fetchData()
     }
 }
 
+static bool isCommercialPlane(String callsign)
+{
+    MatchState ms;
+    ms.Target(const_cast<char *>(callsign.c_str()));
+    return ms.Match("%a%a%a[%d+]") == REGEXP_MATCHED;
+}
+
+static bool isBetterFlight(double current_distance, String current_callsign, double candidate_distance, String candidate_callsign)
+{
+    if (!current_callsign)
+    {
+        return true;
+    }
+    if (isCommercialPlane(current_callsign) != isCommercialPlane(candidate_callsign))
+    {
+        return isCommercialPlane(candidate_callsign) > isCommercialPlane(current_callsign);
+    }
+    return candidate_distance > current_distance;
+}
+
 FetchResult HTTPTask::handleData(DynamicJsonDocument json)
 {
     char buf[200];
@@ -161,7 +182,7 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
             continue;
         }
 
-        if (dist < nearest_dist)
+        if (isBetterFlight(nearest_dist, nearest_callsign, dist, callsign))
         {
             nearest_dist = dist;
             nearest_callsign = callsign;
@@ -186,14 +207,16 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
     current_callsign = nearest_callsign;
 
     String iataFlight = icaoToIataFlight(nearest_callsign);
-    // TODO: Request further information about the flight (origin/destination, IATA flight number, aircraft).
     String route = getRoute(nearest_callsign);
 
     // Construct the messages to display
     messages_.clear();
 
     messages_.push_back(iataFlight);
-    messages_.push_back(route);
+    if (!route.isEmpty())
+    {
+        messages_.push_back(route);
+    }
 
     return FetchResult::UPDATE;
 }
@@ -236,6 +259,10 @@ String HTTPTask::getRoute(String callsign)
             return "";
         }
 
+        if (!doc["response"]["flightroute"])
+        {
+            return "";
+        }
         String origin = doc["response"]["flightroute"]["origin"]["iata_code"];
         String destination = doc["response"]["flightroute"]["destination"]["iata_code"];
 
@@ -314,6 +341,7 @@ void HTTPTask::run() {
             if (fetchResult == FetchResult::UPDATE)
             {
                 update = true;
+                current_message_index_ = 0;
             }
 
             http_last_request_time_ = millis();
