@@ -70,15 +70,13 @@ FetchResult HTTPTask::fetchData()
     http.useHTTP10(true);
 
     // Send the request as a GET
-    logger_.log("Sending adsb request");
+    log_d("Sending adsb request");
     int http_code = http.GET();
 
-    snprintf(buf, sizeof(buf), "Finished request in %lu millis.", millis() - start);
-    logger_.log(buf);
+    log_d("Finished request in %lu millis.", millis() - start);
     if (http_code > 0)
     {
-        snprintf(buf, sizeof(buf), "Response code: %d Data length: %d", http_code, http.getSize());
-        logger_.log(buf);
+        log_d("Response code: %d Data length: %d", http_code, http.getSize());
 
         // The filter: it contains "true" for each value we want to keep
         StaticJsonDocument<200> filter;
@@ -95,8 +93,7 @@ FetchResult HTTPTask::fetchData()
         if (err)
         {
             http.end();
-            snprintf(buf, sizeof(buf), "Error parsing response! %s", err.c_str());
-            logger_.log(buf);
+            log_d("Error parsing response! %s", err.c_str());
             return FetchResult::ERROR;
         }
 
@@ -106,8 +103,7 @@ FetchResult HTTPTask::fetchData()
     }
     else
     {
-        snprintf(buf, sizeof(buf), "Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
-        logger_.log(buf);
+        log_d("Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
         http.end();
         return FetchResult::ERROR;
     }
@@ -159,8 +155,7 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
         String hex = aircraft["hex"];
         if (!aircraft["flight"])
         {
-            snprintf(buf, sizeof(buf), "Plane %s has no flight number.", hex.c_str());
-            logger_.log(buf);
+            log_d("Plane %s has no flight number.", hex.c_str());
             continue;
         }
 
@@ -173,22 +168,19 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
 
         if (dist > MAX_DISTANCE_KM)
         {
-            snprintf(buf, sizeof(buf), "Plane %s too far away %fkm.", callsign.c_str(), dist);
-            logger_.log(buf);
+            log_d("Plane %s too far away %fkm.", callsign.c_str(), dist);
             continue;
         }
 
         if (alt > MAX_ALT_FT)
         {
-            snprintf(buf, sizeof(buf), "Plane %s too high %fft.", callsign.c_str(), alt);
-            logger_.log(buf);
+            log_d("Plane %s too high %fft.", callsign.c_str(), alt);
             continue;
         }
 
         if (alt < LOW_ALT_FT && dist > LOW_MAX_DISTANCE_KM)
         {
-            snprintf(buf, sizeof(buf), "Plane %s flying low at %fft and too far away %fkm.", callsign.c_str(), alt, dist);
-            logger_.log(buf);
+            log_d("Plane %s flying low at %fft and too far away %fkm.", callsign.c_str(), alt, dist);
             continue;
         }
 
@@ -202,16 +194,15 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
 
     if (nearest_dist > MAX_DISTANCE_KM)
     {
-        logger_.log("No nearby planes");
+        log_d("No nearby planes");
         return FetchResult::ERROR;
     }
 
-    snprintf(buf, sizeof(buf), "Nearest plane %s %s at %f", nearest_hex.c_str(), nearest_callsign.c_str(), nearest_dist);
-    logger_.log(buf);
+    log_d("Nearest plane %s %s at %f", nearest_hex.c_str(), nearest_callsign.c_str(), nearest_dist);
 
     if (current_callsign && nearest_callsign == current_callsign)
     {
-        logger_.log("Plane already detected");
+        log_d("Plane already detected");
         return FetchResult::NO_CHANGE;
     }
     current_callsign = nearest_callsign;
@@ -242,15 +233,13 @@ String HTTPTask::getRoute(String callsign)
     http.useHTTP10(true);
 
     // Send the request as a GET
-    logger_.log("Sending route request");
+    log_d("Sending route request");
     int http_code = http.GET();
 
-    snprintf(buf, sizeof(buf), "Finished request in %lu millis.", millis() - start);
-    logger_.log(buf);
+    log_d("Finished request in %lu millis.", millis() - start);
     if (http_code > 0)
     {
-        snprintf(buf, sizeof(buf), "Response code: %d Data length: %d", http_code, http.getSize());
-        logger_.log(buf);
+        log_d("Response code: %d Data length: %d", http_code, http.getSize());
 
         // The filter: it contains "true" for each value we want to keep
         StaticJsonDocument<200> filter;
@@ -264,30 +253,26 @@ String HTTPTask::getRoute(String callsign)
         if (err)
         {
             http.end();
-            snprintf(buf, sizeof(buf), "Error parsing response! %s", err.c_str());
-            logger_.log(buf);
+            log_d("Error parsing response! %s", err.c_str());
             return "";
         }
 
         if (!doc["response"]["flightroute"])
         {
-            snprintf(buf, sizeof(buf), "No flight route for callsign %s", callsign.c_str());
-            logger_.log(buf);
+            log_d("No flight route for callsign %s", callsign.c_str());
             return "";
         }
         String origin = doc["response"]["flightroute"]["origin"]["iata_code"];
         String destination = doc["response"]["flightroute"]["destination"]["iata_code"];
 
-        snprintf(buf, sizeof(buf), "Flight route for callsign %s is %s%s", callsign.c_str(), origin.c_str(), destination.c_str());
-        logger_.log(buf);
+        log_d("Flight route for callsign %s is %s%s", callsign.c_str(), origin.c_str(), destination.c_str());
 
         http.end();
         return origin + destination;
     }
     else
     {
-        snprintf(buf, sizeof(buf), "Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
-        logger_.log(buf);
+        log_d("Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
         http.end();
         return "";
     }
@@ -305,15 +290,14 @@ void HTTPTask::connectWifi() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     char buf[256];
 
-    logger_.log("Establishing connection to WiFi..");
+    log_d("Establishing connection to WiFi..");
     snprintf(buf, sizeof(buf), "Wifi connecting to %s", WIFI_SSID);
     display_task_.setMessage(1, String(buf));
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
     }
 
-    snprintf(buf, sizeof(buf), "Connected to network %s", WIFI_SSID);
-    logger_.log(buf);
+    log_d("Connected to network %s", WIFI_SSID);
 
     // Sync SNTP
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
@@ -322,7 +306,7 @@ void HTTPTask::connectWifi() {
     sntp_setservername(0, server);
     sntp_init();
 
-    logger_.log("Waiting for NTP time sync...");
+    log_d("Waiting for NTP time sync...");
     snprintf(buf, sizeof(buf), "Syncing NTP time via %s...", server);
     display_task_.setMessage(1, String(buf));
     time_t now;
@@ -377,8 +361,7 @@ void HTTPTask::run() {
             if (messages_.size() > 0) {
                 String message = messages_[current_message_index_].c_str();
 
-                snprintf(buf, sizeof(buf), "Cycling to next message: %s", message.c_str());
-                logger_.log(buf);
+                log_d("Cycling to next message: %s", message.c_str());
 
                 // Pad message for display
                 size_t len = strlcpy(buf, message.c_str(), sizeof(buf));
