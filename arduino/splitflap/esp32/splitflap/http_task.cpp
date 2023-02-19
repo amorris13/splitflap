@@ -23,7 +23,6 @@
 
 #include "../core/arduino_json.h"
 #include "geo_distance.h"
-#include "icao_to_iata.h"
 #include "secrets.h"
 
 // About this example:
@@ -61,7 +60,6 @@
 
 FetchResult HTTPTask::fetchData()
 {
-    char buf[200];
     uint32_t start = millis();
     HTTPClient http;
 
@@ -207,28 +205,18 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
     }
     current_callsign = nearest_callsign;
 
-    String iataFlight = icaoToIataFlight(nearest_callsign);
-    String route = getRoute(nearest_callsign);
-
-    // Construct the messages to display
     messages_.clear();
-
-    messages_.push_back(iataFlight);
-    if (!route.isEmpty())
-    {
-        messages_.push_back(route);
-    }
-
+    setMessages(nearest_callsign);
     return FetchResult::UPDATE;
 }
 
-String HTTPTask::getRoute(String callsign)
+void HTTPTask::setMessages(String callsign)
 {
     uint32_t start = millis();
     HTTPClient http;
 
     // Construct the http request
-    http.begin("https://api.adsbdb.com/v0/callsign/" + callsign);
+    http.begin("https://api.adsbdb.com/beta/callsign/" + callsign);
     http.useHTTP10(true);
 
     // Send the request as a GET
@@ -242,6 +230,7 @@ String HTTPTask::getRoute(String callsign)
 
         // The filter: it contains "true" for each value we want to keep
         StaticJsonDocument<200> filter;
+        filter["response"]["flightroute"]["callsign_iata"] = true;
         filter["response"]["flightroute"]["origin"]["iata_code"] = true;
         filter["response"]["flightroute"]["destination"]["iata_code"] = true;
 
@@ -253,27 +242,32 @@ String HTTPTask::getRoute(String callsign)
         {
             http.end();
             log_d("Error parsing response! %s", err.c_str());
-            return "";
+            return;
         }
 
         if (!doc["response"]["flightroute"])
         {
             log_d("No flight route for callsign %s", callsign.c_str());
-            return "";
+            messages_.push_back(callsign);
+            return;
         }
+
+        String callsign_iata = doc["response"]["flightroute"]["callsign_iata"];
+        messages_.push_back(callsign_iata ? callsign_iata : callsign);
+
         String origin = doc["response"]["flightroute"]["origin"]["iata_code"];
         String destination = doc["response"]["flightroute"]["destination"]["iata_code"];
 
         log_d("Flight route for callsign %s is %s%s", callsign.c_str(), origin.c_str(), destination.c_str());
 
         http.end();
-        return origin + destination;
+        messages_.push_back(origin + destination);
     }
     else
     {
         log_d("Error on HTTP request (%d): %s", http_code, http.errorToString(http_code).c_str());
         http.end();
-        return "";
+        return;
     }
 }
 
@@ -313,8 +307,8 @@ void HTTPTask::connectWifi() {
         delay(1000);
     }
 
-    setenv("TZ", TIMEZONE, 1);
-    tzset();
+    // setenv("TZ", TIMEZONE, 1);
+    // tzset();
     strftime(buf, sizeof(buf), "Got time: %Y-%m-%d %H:%M:%S", localtime(&now));
     logger_.log(buf);
 }

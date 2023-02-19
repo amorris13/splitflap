@@ -46,7 +46,7 @@ class HTTPTask : public Task<HTTPTask> {
         FetchResult fetchData();
         FetchResult handleData(DynamicJsonDocument json);
 
-        String getRoute(String callsign);
+        void setMessages(String callsign);
 
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
