@@ -224,7 +224,6 @@ FetchResult HTTPTask::handleData(DynamicJsonDocument json)
 
 String HTTPTask::getRoute(String callsign)
 {
-    char buf[200];
     uint32_t start = millis();
     HTTPClient http;
 
