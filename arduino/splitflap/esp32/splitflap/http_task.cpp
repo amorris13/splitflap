@@ -216,7 +216,7 @@ void HTTPTask::setMessages(String callsign)
     HTTPClient http;
 
     // Construct the http request
-    http.begin("https://api.adsbdb.com/beta/callsign/" + callsign);
+    http.begin("https://api.adsbdb.com/v0/callsign/" + callsign);
     http.useHTTP10(true);
 
     // Send the request as a GET
