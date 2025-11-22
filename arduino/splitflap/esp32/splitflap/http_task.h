@@ -24,12 +24,11 @@
 #include "../core/task.h"
 
 #include "display_task.h"
+#include "flight_data_provider.h"
 
-enum class FetchResult
-{
-    ERROR,
-    NO_CHANGE,
-    UPDATE,
+struct SpecialMessage {
+    time_t time;
+    const char* message;
 };
 
 class HTTPTask : public Task<HTTPTask> {
@@ -43,15 +42,12 @@ class HTTPTask : public Task<HTTPTask> {
 
     private:
         void connectWifi();
-        FetchResult fetchData();
-        FetchResult handleData(DynamicJsonDocument json);
-
-        void setMessages(String callsign);
 
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
         Logger& logger_;
         WiFiClient wifi_client_;
+        FlightDataProvider flight_data_provider_;
         uint32_t http_last_request_time_ = 0;
         uint32_t http_last_success_time_ = 0;
 
@@ -59,5 +55,5 @@ class HTTPTask : public Task<HTTPTask> {
         uint8_t current_message_index_ = 0;
         uint32_t last_message_change_time_ = 0;
 
-        String current_callsign;
+        std::vector<SpecialMessage> special_messages_;
 };
