@@ -20,36 +20,22 @@
 
 #include "../core/arduino_json.h"
 #include "../core/logger.h"
-#include "../core/splitflap_task.h"
-#include "../core/task.h"
-
 #include "display_task.h"
 #include "message_provider.h"
 
-class HTTPTask : public Task<HTTPTask> {
-    friend class Task<HTTPTask>; // Allow base Task to invoke protected run()
-
+class FlightDataProvider : public MessageProvider {
     public:
-        HTTPTask(SplitflapTask& splitflap_task, DisplayTask& display_task, Logger& logger, const uint8_t task_core);
-        ~HTTPTask();
-
-    protected:
-        void run();
+        FlightDataProvider(DisplayTask& display_task, Logger& logger);
+        FetchResult fetchData() override;
+        const std::vector<String>& getMessages() override;
 
     private:
-        void connectWifi();
+        FetchResult handleData(DynamicJsonDocument json);
+        void setMessages(String callsign);
 
-        SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
         Logger& logger_;
-        WiFiClient wifi_client_;
 
-        std::vector<MessageProvider*> message_providers_;
-
-        uint32_t http_last_request_time_ = 0;
-        uint32_t http_last_success_time_ = 0;
-
-        std::vector<String> messages_ = {};
-        uint8_t current_message_index_ = 0;
-        uint32_t last_message_change_time_ = 0;
+        std::vector<String> messages_;
+        String current_callsign;
 };
