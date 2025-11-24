@@ -35,7 +35,7 @@
 // Don't show stale data if it's been too long since successful data load
 #define STALE_TIME_MILLIS (20 * 1000)
 
-// Timezone for local time strings; this is Australia/Sydney. See https://github.com/nayarsystems/pos_tz_db/blob/master/zones.csv
+// Timezone for local time strings; this is Australia/Sydney. See https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "AEST-10AEDT,M10.1.0,M4.1.0/3"
 
 
