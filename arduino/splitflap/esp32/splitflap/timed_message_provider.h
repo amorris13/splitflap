@@ -15,21 +15,25 @@
 */
 #pragma once
 
-#include "message_provider.h"
 #include <time.h>
 
+#include "display_task.h"
+#include "message_provider.h"
+
 struct SpecialMessage {
-    time_t start_time;
-    int duration_seconds;
-    const std::vector<String> messages;
+  time_t start_time;
+  int duration_seconds;
+  const std::vector<String> messages;
 };
 
 class TimedMessageProvider : public MessageProvider {
-public:
-    TimedMessageProvider();
-    FetchResult fetchData() override;
-    const std::vector<String>& getMessages() override;
+ public:
+  TimedMessageProvider(DisplayTask& display_task);
+  FetchResult fetchData() override;
+  const std::vector<String>& getMessages() override;
 
-private:
-    std::vector<String> current_messages_;
+ private:
+  DisplayTask& display_task_;
+
+  std::vector<String> current_messages_;
 };
