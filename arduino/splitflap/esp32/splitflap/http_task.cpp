@@ -28,8 +28,8 @@
 // Update data every 5 seconds
 #define REQUEST_INTERVAL_MILLIS (5 * 1000)
 
-// Cycle the message that's showing more frequently, every 15 seconds
-#define MESSAGE_CYCLE_INTERVAL_MILLIS (15 * 1000)
+// Cycle the message that's showing more frequently, every 30 seconds
+#define MESSAGE_CYCLE_INTERVAL_MILLIS (30 * 1000)
 
 // Don't show stale data if it's been too long since successful data load
 #define STALE_TIME_MILLIS (20 * 1000)
