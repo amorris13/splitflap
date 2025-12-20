@@ -198,33 +198,39 @@ static const SpecialMessage special_messages[] = {
     {1766663520, 240, {"LIH US"}}, {1766663760, 240, {"RAR CK"}},
 };
 
-TimedMessageProvider::TimedMessageProvider(DisplayTask& display_task)
-    : display_task_(display_task) {}
+TimedMessageProvider::TimedMessageProvider(DisplayTask& display_task,
+                                           Logger& logger)
+    : display_task_(display_task), logger_(logger) {}
 
 FetchResult TimedMessageProvider::fetchData() {
   time_t now_time;
   time(&now_time);
 
+  log_d("TimedMessageProvider fetch");
   for (const auto& sm : special_messages) {
     if (now_time >= sm.start_time &&
         now_time < sm.start_time + sm.duration_seconds) {
       if (current_messages_ != sm.messages) {
         current_messages_ = sm.messages;
+        log_d("Timed Message (update): %s", sm.messages[0]);
         display_task_.setMessage(
             2, String("Timed Message (up): ") + sm.messages[0]);
         return FetchResult::UPDATE;
       }
+      log_d("Timed Message (no change): %s", sm.messages[0]);
       display_task_.setMessage(2,
                                String("Timed Message (nc): ") + sm.messages[0]);
       return FetchResult::NO_CHANGE;
     }
   }
   if (!current_messages_.empty()) {
-    display_task_.setMessage(2, String("Timed Message (clr): "));
+    log_d("Timed Message (clear)");
+    display_task_.setMessage(2, String("Timed Message (clr)"));
     current_messages_.clear();
     return FetchResult::UPDATE;
   }
-  display_task_.setMessage(2, String("Timed Message (no msg): "));
+  log_d("Timed Message (no message)");
+  display_task_.setMessage(2, String("Timed Message (no msg)"));
   return FetchResult::NO_CHANGE;
 }
 

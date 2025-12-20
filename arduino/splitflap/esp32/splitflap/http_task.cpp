@@ -45,7 +45,7 @@ HTTPTask::HTTPTask(SplitflapTask& splitflap_task, DisplayTask& display_task,
       display_task_(display_task),
       logger_(logger),
       wifi_client_() {
-  message_providers_.push_back(new TimedMessageProvider(display_task));
+  message_providers_.push_back(new TimedMessageProvider(display_task, logger));
   message_providers_.push_back(new FlightDataProvider(display_task, logger));
 }
 

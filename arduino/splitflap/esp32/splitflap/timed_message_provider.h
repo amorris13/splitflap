@@ -17,6 +17,7 @@
 
 #include <time.h>
 
+#include "../core/logger.h"
 #include "display_task.h"
 #include "message_provider.h"
 
@@ -28,12 +29,13 @@ struct SpecialMessage {
 
 class TimedMessageProvider : public MessageProvider {
  public:
-  TimedMessageProvider(DisplayTask& display_task);
+  TimedMessageProvider(DisplayTask& display_task, Logger& logger);
   FetchResult fetchData() override;
   const std::vector<String>& getMessages() override;
 
  private:
   DisplayTask& display_task_;
+  Logger& logger_;
 
   std::vector<String> current_messages_;
 };
