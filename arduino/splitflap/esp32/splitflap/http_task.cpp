@@ -119,7 +119,7 @@ void HTTPTask::run() {
           } else if (fetchResult == FetchResult::NO_CHANGE) {
             http_last_success_time_ = millis();
             stale = false;
-            update = true;
+            update = false;
           }
           // This provider is active, so we don't want to fall back to the next
           // one
