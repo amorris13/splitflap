@@ -14,18 +14,18 @@
 */
 #pragma once
 
-#include <Arduino.hh>
+#include <Arduino.h>
 #include <WiFi.h>
 
 #include "../core/logger.h"
 #include "display_task.h"
 
 class WiFiManager {
-    public:
-        WiFiManager(DisplayTask& display_task, Logger& logger);
-        bool connect();
+ public:
+  WiFiManager(DisplayTask& display_task, Logger& logger);
+  bool connect();
 
-    private:
-        DisplayTask& display_task_;
-        Logger& logger_;
+ private:
+  DisplayTask& display_task_;
+  Logger& logger_;
 };

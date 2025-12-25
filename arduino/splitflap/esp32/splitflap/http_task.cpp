@@ -139,7 +139,7 @@ void HTTPTask::run() {
         wifi_status = "No SSID";
         break;
       case WL_CONNECTED:
-        wifi_status = String(WIFI_SSID) + " " + WiFi.localIP().toString();
+        wifi_status = String(WiFi.SSID()) + " " + WiFi.localIP().toString();
         break;
       case WL_CONNECT_FAILED:
         wifi_status = "Connection failed";
