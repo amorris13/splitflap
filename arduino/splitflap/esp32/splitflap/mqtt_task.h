@@ -22,26 +22,26 @@
 #include "../core/task.h"
 
 #include <PubSubClient.h>
-#include <WiFi.h>
+
+#include "wifi_manager.h"
 
 
 class MQTTTask : public Task<MQTTTask> {
     friend class Task<MQTTTask>; // Allow base Task to invoke protected run()
 
     public:
-        MQTTTask(SplitflapTask& splitflapTask, Logger& logger, const uint8_t taskCore);
+        MQTTTask(SplitflapTask& splitflapTask, WiFiManager& wifi_manager, Logger& logger, const uint8_t taskCore);
 
     protected:
         void run();
 
     private:
         SplitflapTask& splitflap_task_;
+        WiFiManager& wifi_manager_;
         Logger& logger_;
         WiFiClient wifi_client_;
         PubSubClient mqtt_client_;
         int mqtt_last_connect_time_ = 0;
-
-        void connectWifi();
         void connectMQTT();
         void mqttCallback(char *topic, byte *payload, unsigned int length);
 };

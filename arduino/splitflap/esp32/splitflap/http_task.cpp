@@ -39,12 +39,12 @@
 #define TIMEZONE "AEST-10AEDT,M10.1.0,M4.1.0/3"
 
 HTTPTask::HTTPTask(SplitflapTask& splitflap_task, DisplayTask& display_task,
-                   Logger& logger, const uint8_t task_core)
+                   WiFiManager& wifi_manager, Logger& logger, const uint8_t task_core)
     : Task("HTTP", 8192, 1, task_core),
       splitflap_task_(splitflap_task),
       display_task_(display_task),
-      logger_(logger),
-      wifi_client_() {
+      wifi_manager_(wifi_manager),
+      logger_(logger) {
   message_providers_.push_back(new TimedMessageProvider(display_task, logger));
   message_providers_.push_back(new FlightDataProvider(display_task, logger));
 }
@@ -55,46 +55,15 @@ HTTPTask::~HTTPTask() {
   }
 }
 
-void HTTPTask::connectWifi() {
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  char buf[256];
-
-  log_d("Establishing connection to WiFi..");
-  snprintf(buf, sizeof(buf), "Wifi connecting to %s", WIFI_SSID);
-  display_task_.setMessage(1, String(buf));
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-  }
-
-  log_d("Connected to network %s", WIFI_SSID);
-
-  // Sync SNTP
-  sntp_setoperatingmode(SNTP_OPMODE_POLL);
-
-  char server[] =
-      "time.nist.gov";  // sntp_setservername takes a non-const char*, so use a
-                        // non-const variable to avoid warning
-  sntp_setservername(0, server);
-  sntp_init();
-
-  log_d("Waiting for NTP time sync...");
-  snprintf(buf, sizeof(buf), "Syncing NTP time via %s...", server);
-  display_task_.setMessage(1, String(buf));
-  time_t now;
-  while (time(&now), now < 1625099485) {
-    delay(1000);
-  }
-
-  // setenv("TZ", TIMEZONE, 1);
-  // tzset();
-  strftime(buf, sizeof(buf), "Got time: %Y-%m-%d %H:%M:%S", localtime(&now));
-  logger_.log(buf);
-}
-
 void HTTPTask::run() {
   char buf[max(NUM_MODULES + 1, 200)];
 
-  connectWifi();
+  if (!wifi_manager_.connect()) {
+      // Loop forever, we can't do anything without WiFi
+      while(1) {
+          delay(1000);
+      }
+  }
 
   bool stale = false;
   while (1) {

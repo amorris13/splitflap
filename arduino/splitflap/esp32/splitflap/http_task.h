@@ -24,25 +24,24 @@
 #include "../core/task.h"
 
 #include "display_task.h"
+#include "wifi_manager.h"
 #include "message_provider.h"
 
 class HTTPTask : public Task<HTTPTask> {
     friend class Task<HTTPTask>; // Allow base Task to invoke protected run()
 
     public:
-        HTTPTask(SplitflapTask& splitflap_task, DisplayTask& display_task, Logger& logger, const uint8_t task_core);
+        HTTPTask(SplitflapTask& splitflap_task, DisplayTask& display_task, WiFiManager& wifi_manager, Logger& logger, const uint8_t task_core);
         ~HTTPTask();
 
     protected:
         void run();
 
     private:
-        void connectWifi();
-
         SplitflapTask& splitflap_task_;
         DisplayTask& display_task_;
+        WiFiManager& wifi_manager_;
         Logger& logger_;
-        WiFiClient wifi_client_;
 
         std::vector<MessageProvider*> message_providers_;
 

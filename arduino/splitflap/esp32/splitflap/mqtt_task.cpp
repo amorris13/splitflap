@@ -18,27 +18,15 @@
 #include "secrets.h"
 
 
-MQTTTask::MQTTTask(SplitflapTask& splitflap_task, Logger& logger, const uint8_t task_core) :
+MQTTTask::MQTTTask(SplitflapTask& splitflap_task, WiFiManager& wifi_manager, Logger& logger, const uint8_t task_core) :
         Task("MQTT", 8192, 1, task_core),
         splitflap_task_(splitflap_task),
+        wifi_manager_(wifi_manager),
         logger_(logger),
         wifi_client_(),
         mqtt_client_(wifi_client_) {
     auto callback = [this](char *topic, byte *payload, unsigned int length) { mqttCallback(topic, payload, length); };
     mqtt_client_.setCallback(callback);
-}
-
-void MQTTTask::connectWifi() {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        logger_.log("Establishing connection to WiFi..");
-    }
-
-    char buf[256];
-    snprintf(buf, sizeof(buf), "Connected to network %s", WIFI_SSID);
-    logger_.log(buf);
 }
 
 void MQTTTask::mqttCallback(char *topic, byte *payload, unsigned int length) {
@@ -62,7 +50,12 @@ void MQTTTask::connectMQTT() {
 }
 
 void MQTTTask::run() {
-    connectWifi();
+    if (!wifi_manager_.connect()) {
+        // Loop forever, we can't do anything without WiFi
+        while(1) {
+            delay(1000);
+        }
+    }
     connectMQTT();
 
     while(1) {
