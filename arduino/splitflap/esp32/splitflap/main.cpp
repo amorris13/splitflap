@@ -36,14 +36,19 @@ DisplayTask displayTask(splitflapTask, 0);
 BaseSupervisorTask baseSupervisorTask(splitflapTask, serialTask, 0);
 #endif
 
+#if MQTT || HTTP
+#include "wifi_manager.h"
+WiFiManager wifiManager(displayTask, serialTask);
+#endif
+
 #if MQTT
 #include "mqtt_task.h"
-MQTTTask mqttTask(splitflapTask, serialTask, 0);
+MQTTTask mqttTask(splitflapTask, wifiManager, serialTask, 0);
 #endif
 
 #if HTTP
 #include "http_task.h"
-HTTPTask httpTask(splitflapTask, displayTask, serialTask, 0);
+HTTPTask httpTask(splitflapTask, displayTask, wifiManager, serialTask, 0);
 #endif
 
 void setup() {
